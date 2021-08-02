@@ -1,0 +1,13 @@
+{
+  "name": "Reactive-API-Consumer",
+  "version": "0.0.1",
+  "description": "A tester for Reactive Java 101 Approaches",
+  "main": "index.js",
+  "dependencies": {
+    "moment": "^2.29.1",
+    "node-fetch": "^2.6.1"
+  },
+  "devDependencies": {},
+  "scripts": {},
+  "private": false
+}
