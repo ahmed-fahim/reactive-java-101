@@ -8,8 +8,9 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
-import java.util.Objects;
+import javax.naming.ServiceUnavailableException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Service
@@ -30,28 +31,25 @@ public class RandomInformationEmitterImpl implements RandomInformationEmitter {
         return fetchRandomInformationSafely(requestTime);
     }
 
-
     private CompletableFuture<RandomInformation> fetchRandomInformationSafely(String requestTime) {
         var completableFuture = new CompletableFuture<RandomInformation>();
-        var rejectExceptionFuture = rejectWithFutureIfNecessary(completableFuture);
-        if (Objects.isNull(rejectExceptionFuture)) {
+        try {
             this.threadPoolExecutor.submit(randomInfoGenerationTask(requestTime, completableFuture));
-            return completableFuture;
-        } else {
-            return rejectExceptionFuture;
-        }
-    }
-
-    private <T> CompletableFuture<T> rejectWithFutureIfNecessary(CompletableFuture<T> completableFuture) {
-        if (this.threadPoolExecutor.getActiveCount() == this.threadPoolExecutor.getCorePoolSize()) {
+        } catch (RejectedExecutionException rejectedExecutionException) {
             completableFuture.completeExceptionally(exceptionDueToResourceSaturation());
-            return completableFuture;
+        } catch (Exception exception) {
+            completableFuture.completeExceptionally(serviceUnavailableException());
         }
-        return null;
+        return completableFuture;
+
     }
 
     private RuntimeException exceptionDueToResourceSaturation() {
         return new RuntimeException("Not enough resource available to handle request");
+    }
+
+    private ServiceUnavailableException serviceUnavailableException() {
+        return new ServiceUnavailableException("Service Unavailable Due To Generic Exception");
     }
 
     private Runnable randomInfoGenerationTask(String requestTime,

@@ -17,7 +17,7 @@ public class ThreadConfig {
 
     @Bean(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
     public BlockingQueue<Runnable> blockingQueue() {
-        return new LinkedBlockingQueue<>(MAX_RESERVE_THREAD_COUNT_BLOCKING * 5);
+        return new LinkedBlockingQueue<>(MAX_RESERVE_THREAD_COUNT_BLOCKING);
     }
 
     @Bean(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE)

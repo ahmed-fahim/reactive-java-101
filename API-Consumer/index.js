@@ -55,7 +55,10 @@ function printIfFinishedAllFetch(lastSerial) {
 
 function fetchRandomInformation(currentSerial, lastSerial) {
 	fetch(reactiveUrl, getRequestParams())
-		.then((response) => response.json())
+		.then((response) => {
+			console.log("response-status : " + response.status);
+			return response.json()
+		})
 		.then(randomInformation => {
 			handleRandomInformation(randomInformation);
 			successCounter++;
