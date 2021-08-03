@@ -1,11 +1,13 @@
 {
-  "name": "Reactive-API-Consumer",
+  "name": "reactive-java-101-api-consumer",
   "version": "0.0.1",
   "description": "A tester for Reactive Java 101 Approaches",
   "main": "index.js",
+  "author": { "name" : "Fahim Ahmed", "personal-email" : "fahim.ahmed.ofcl@gmail.com" },
   "dependencies": {
     "moment": "^2.29.1",
-    "node-fetch": "^2.6.1"
+    "node-fetch": "^2.6.1",
+    "yargs": "^17.0.1"
   },
   "devDependencies": {},
   "scripts": {},

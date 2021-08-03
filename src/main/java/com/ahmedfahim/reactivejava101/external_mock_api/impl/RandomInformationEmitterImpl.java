@@ -1,89 +1,82 @@
 package com.ahmedfahim.reactivejava101.external_mock_api.impl;
 
+import com.ahmedfahim.reactivejava101.external_mock_api.RandomInfoTaskGenerator;
 import com.ahmedfahim.reactivejava101.external_mock_api.RandomInformationEmitter;
 import com.ahmedfahim.reactivejava101.response.RandomInformation;
-import com.ahmedfahim.reactivejava101.utils.DateTimeUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.RandomStringUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
-import javax.naming.ServiceUnavailableException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
 
 @Service
 @Slf4j
 public class RandomInformationEmitterImpl implements RandomInformationEmitter {
-    private final DateTimeUtils dateTimeUtils;
-    private final ThreadPoolExecutor threadPoolExecutor;
+    private final Executor executor;
+    private final ExecutorService executorService;
+    private final RandomInfoTaskGenerator randomInfoTaskGenerator;
 
-
-    public RandomInformationEmitterImpl(DateTimeUtils dateTimeUtils,
-                                        ThreadPoolExecutor threadPoolExecutor) {
-        this.dateTimeUtils = dateTimeUtils;
-        this.threadPoolExecutor = threadPoolExecutor;
+    public RandomInformationEmitterImpl(@Qualifier("THREAD_PER_SERVICE") Executor executor,
+                                        ExecutorService executorService,
+                                        RandomInfoTaskGenerator randomInfoTaskGenerator) {
+        this.executor = executor;
+        this.executorService = executorService;
+        this.randomInfoTaskGenerator = randomInfoTaskGenerator;
     }
 
     @Override
-    public CompletableFuture<RandomInformation> fetchRandomInformation(String requestTime) {
-        return fetchRandomInformationSafely(requestTime);
+    public CompletableFuture<RandomInformation> fetchInfoUsingFutureBlocking(String requestTime) {
+        var completableFuture = new CompletableFuture<RandomInformation>();
+        Runnable runnableTask = randomInfoTaskGenerator.infoGenerationBlockingRunnable(requestTime, completableFuture);
+        executor.execute(runnableTask);
+        return completableFuture;
     }
 
-    private CompletableFuture<RandomInformation> fetchRandomInformationSafely(String requestTime) {
+    @Override
+    public CompletableFuture<RandomInformation> fetchInfoUsingFutureAsync(String requestTime) {
         var completableFuture = new CompletableFuture<RandomInformation>();
+        Runnable runnableTask = randomInfoTaskGenerator.infoGenerationBlockingRunnable(requestTime, completableFuture);
+
         try {
-            this.threadPoolExecutor.submit(randomInfoGenerationTask(requestTime, completableFuture));
+            requestExecutor().execute(runnableTask);
         } catch (RejectedExecutionException rejectedExecutionException) {
             completableFuture.completeExceptionally(exceptionDueToResourceSaturation());
         } catch (Exception exception) {
-            completableFuture.completeExceptionally(serviceUnavailableException());
+            completableFuture.completeExceptionally(exception);
         }
-        return completableFuture;
 
+        return completableFuture;
+    }
+
+    @Override
+    public Mono<RandomInformation> fetchInfoUsingElasticScheduler(String requestTime) {
+        var callableTask = randomInfoTaskGenerator.infoGenerationBlockingCallable(requestTime);
+        return Mono.fromCallable(callableTask)
+                .subscribeOn(Schedulers.elastic());
+    }
+
+    @Override
+    public Mono<RandomInformation> fetchInfoUsingBoundedElasticScheduler(String requestTime) {
+        var callableTask = randomInfoTaskGenerator.infoGenerationBlockingCallable(requestTime);
+        return Mono.fromCallable(callableTask)
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @Override
+    public Mono<RandomInformation> fetchInfoUsingExecutorServiceScheduler(String requestTime) {
+        var callableTask = randomInfoTaskGenerator.infoGenerationBlockingCallable(requestTime);
+        return Mono.fromCallable(callableTask)
+                .subscribeOn(Schedulers.fromExecutorService(executorService));
     }
 
     private RuntimeException exceptionDueToResourceSaturation() {
         return new RuntimeException("Not enough resource available to handle request");
-    }
-
-    private ServiceUnavailableException serviceUnavailableException() {
-        return new ServiceUnavailableException("Service Unavailable Due To Generic Exception");
-    }
-
-    private Runnable randomInfoGenerationTask(String requestTime,
-                                              CompletableFuture<RandomInformation> completableFuture) {
-        return () -> {
-            try {
-                //Mimicking a blocking/time-consuming operation
-                Thread.sleep(5000); //5s sleep
-
-                int randomDeterminant = Integer.parseInt(RandomStringUtils.randomNumeric(5));
-
-                if (randomDeterminant % 2 == 0) { //if random is even, we complete properly
-                    log.info("Completing Correctly");
-                    completableFuture.complete(RandomInformation.builder()
-                            .requestTime(requestTime)
-                            .responseTime(dateTimeUtils.getCurrentTimestamp())
-                            .information(RandomStringUtils.randomAlphanumeric(16))
-                            .errorString(null)
-                            .build());
-                } else {
-                    //if random is odd, we are throwing error, which will be completed exceptionally
-                    throw new IllegalArgumentException("Odd Random Generation, resulted in exception");
-                }
-            } catch (Exception exception) {
-                log.error("Completing Exceptionally");
-                completableFuture.completeExceptionally(exception);
-            }
-        };
-    }
-
-    private CompletableFuture<RandomInformation> fetchRandomInformationTraditional(String requestTime) {
-        var completableFuture = new CompletableFuture<RandomInformation>();
-        requestExecutor().execute(randomInfoGenerationTask(requestTime, completableFuture));
-        return completableFuture;
     }
 
     private ThreadPoolTaskExecutor requestExecutor() {
